@@ -5,7 +5,7 @@
 #include <thrust/device_vector.h>
 #include <thrust/execution_policy.h>
 #include <cmath>
-
+#include <hpx/init.hpp>
 #include "nvbench_helper.cuh"
 
 
