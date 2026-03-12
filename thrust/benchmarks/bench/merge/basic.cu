@@ -45,5 +45,5 @@ NVBENCH_BENCH_TYPES(basic, NVBENCH_TYPE_AXES(d_types))
   .set_name("HPX")
   .set_type_axes_names({"T{ct}"})
   .add_int64_power_of_two_axis("Elements", nvbench::range(8, 30, 2))
-  .add_string_axis("Entropy", {"1.000", "0.201"})
-  .add_int64_axis("InputSizeRatio", {25, 50});
+  .add_string_axis("Entropy", {"1.000"})
+  .add_int64_axis("InputSizeRatio", {25});

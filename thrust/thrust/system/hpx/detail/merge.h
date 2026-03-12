@@ -43,6 +43,61 @@ namespace hpx
 namespace detail
 {
 
+struct chunk_size_limiter 
+{
+
+    template <typename Executor>
+  friend std::size_t tag_override_invoke(
+    ::hpx::execution::experimental::processing_units_count_t,
+    chunk_size_limiter&, Executor&, ::hpx::chrono::steady_duration const&, std::size_t count) noexcept
+    {
+        if (count <=4096 ) {
+            return 1;
+        }
+        else {
+            return ::hpx::parallel::execution::detail::get_os_thread_count();
+        }
+    }
+  template <typename Executor>
+  friend std::size_t tag_override_invoke(
+    ::hpx::execution::experimental::get_chunk_size_t, chunk_size_limiter&,
+    Executor&, ::hpx::chrono::steady_duration const&, std::size_t const cores,
+    std::size_t const num_iterations
+  )
+  {
+     if (cores == 1)
+        {
+            return num_iterations;
+        }
+        std::size_t times_cores = 8;
+        if (cores == 2)
+        {
+            times_cores = 4;
+        }
+
+        // Return a chunk size that ensures that each core ends up with the same
+        // number of chunks the sizes of which are equal (except for the last
+        // chunk, which may be smaller by not more than the number of chunks in
+        // terms of elements).
+        std::size_t const num_chunks = times_cores * cores;
+        std::size_t chunk_size = 4096;
+
+        // we should not consider more chunks than we have elements
+        auto const max_chunks = (std::min) (num_chunks, num_iterations);
+
+        // we should not make chunks smaller than what's determined by the max
+        // chunk size
+        chunk_size = (std::max) (chunk_size,
+            (num_iterations + max_chunks - 1) / max_chunks);
+
+        
+
+        HPX_ASSERT(chunk_size * num_chunks >= num_iterations);
+
+        return chunk_size;
+  }
+};
+
 template <typename ExecutionPolicy,
           typename InputIterator1,
           typename InputIterator2,
@@ -64,8 +119,9 @@ merge(execution_policy<ExecutionPolicy>& exec,
                 && ::hpx::traits::is_forward_iterator_v<InputIterator2>
                 && ::hpx::traits::is_forward_iterator_v<OutputIterator>)
   {
+      chunk_size_limiter csl;
       auto res = ::hpx::merge(
-        hpx::detail::to_hpx_execution_policy(exec),
+        hpx::detail::to_hpx_execution_policy(exec).with(csl),
         detail::try_unwrap_contiguous_iterator(first1),
         detail::try_unwrap_contiguous_iterator(last1),
         detail::try_unwrap_contiguous_iterator(first2),
@@ -85,6 +141,12 @@ merge(execution_policy<ExecutionPolicy>& exec,
 } // end namespace hpx
 } // end namespace system
 THRUST_NAMESPACE_END
+
+template<>
+struct hpx::execution::experimental::is_executor_parameters<thrust::system::hpx::detail::chunk_size_limiter>
+  : std::true_type
+{
+};
 
 // this system inherits merge_by_key
 #include <thrust/system/cpp/detail/merge.h>
